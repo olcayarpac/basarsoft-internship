@@ -1,0 +1,21 @@
+﻿         polygons.on('popupopen', (e) => {
+                var popup = e.popup;
+                // create div for showing coordinates
+                var geoJSON = e.layer.toGeoJSON();
+                var geo = L.DomUtil.create('div');
+                geo.innerHTML = JSON.stringify(geoJSON.geometry, null, 2) + '\n';
+                // create button to add to database
+                var btn = L.DomUtil.create('button', '', L.DomUtil.create('div'));
+                btn.setAttribute('type', 'button');
+                btn.setAttribute('id', 'btnSend');
+                btn.innerHTML = 'Add to database';
+                // add listener to button
+                L.DomEvent.on(btn, 'click', () => sendToDb(geoJSON));
+                // show popupDiv
+                var popupDiv = L.DomUtil.create('div');
+                popupDiv.setAttribute('id', 'popupDiv'),
+                    popupDiv.appendChild(geo);
+                popupDiv.appendChild(document.createElement('br'))
+                popupDiv.appendChild(btn);
+                popup.setContent(popupDiv);
+            })

@@ -1,0 +1,460 @@
+﻿@{
+    ViewData["Title"] = "Map";
+}
+<link rel="stylesheet" href="~/css/leaflet.css">
+
+
+<div id="mySidenav" class="sidenav">
+    <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+
+    <ul id="myUL">
+        <li>
+            <span class="caret" id="bolgelerBtn" onclick="getBolgeler()">Bölgeler</span>
+            <ul class="nested" id="bolgelerUL">
+                <li>
+                    <span class="caret">Akdeniz</span>
+                    <ul class="nested">
+                        <li>Getir</li>
+                        <li>Banabi</li>
+                    </ul>
+                </li>
+
+            </ul>
+        </li>
+    </ul>
+
+</div>
+<span class="navbarBtn" onclick="openNav()">&#9776;</span>
+
+<script>
+    var bolgeler = [];
+    var subeler = [];
+    var toggler = document.getElementsByClassName("caret");
+    var i;
+
+
+    for (i = 0; i < toggler.length; i++) {
+        toggler[i].addEventListener("click", function (event) {
+            this.parentElement.querySelector(".nested").classList.toggle("active");
+            this.classList.toggle("caret-down");
+        });
+    }
+
+
+    var bolgeLayer = new L.featureGroup();
+    function getBolgeler() {
+        if (bolgeler.length > 0) {
+            return true;
+        }
+
+        $.get("/Map/GetBolgeler", function (data, status) {
+            var jsonData = JSON.parse(data);
+            bolgeler = jsonData;
+            jsonData.forEach((bolge) => {
+                var bolgeLi = document.createElement('li');
+                bolgeLi.setAttribute('id', ("li" + bolge.bolgeAdi));
+                var bolgeSpan = document.createElement('span');
+                bolgeSpan.setAttribute('class', 'caret');
+                bolgeSpan.setAttribute('id', bolge._id);
+                bolgeSpan.setAttribute('bolge', bolge.bolgeAdi);
+                bolgeSpan.innerHTML = bolge.bolgeAdi;
+                bolgeSpan.setAttribute('isDrawed', 'false');
+
+                //bolgeSpan.addEventListener('click', bolgeClick);
+                bolgeSpan.addEventListener("click", function (event) {
+
+                    console.log(bolgeSpan.getAttribute('class'));
+                    var htmlelem = document.getElementById('subeler' + bolge.bolgeAdi);
+
+                    if (htmlelem == null) {
+
+                        bolgeSpan.setAttribute('isDrawed', 'true');
+                        drawBolge(bolgeSpan.getAttribute('id'));
+                        getSubeler(event.target.id, bolgeSpan.getAttribute('bolge'));
+                    }
+                    else {
+
+                        if (bolgeSpan.getAttribute('isDrawed') == 'true') {
+                            console.log('ciziliydi');
+                            bolgeLayer.clearLayers();
+                            subelerLayers.clearLayers();
+                            bolgeSpan.setAttribute('isDrawed', 'false');
+
+                        }
+                        else {
+                            console.log('cizili degildi');
+                            drawBolge(bolgeSpan.getAttribute('id'));
+                            bolgeSpan.setAttribute('isDrawed', 'true');
+                        }
+
+                        this.parentElement.getElementsByClassName('nested')[0].classList.toggle('active');
+
+                    }
+
+                    this.classList.toggle("caret-down");
+
+                });
+
+                bolgeLi.appendChild(bolgeSpan);
+                var bolgelerUl = document.getElementById('bolgelerUL');
+                bolgelerUl.appendChild(bolgeLi);
+            })
+        });
+    }
+
+    function drawBolge(bolgeId) {
+        bolgeler.forEach((bolge) => {
+            if (bolge._id == bolgeId) {
+                bolgeLayer.clearLayers();
+
+                var geojsonFeature = {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Coors Field",
+                        "amenity": "Baseball Stadium",
+                        "popupContent": "This is where the Rockies play!",
+                    },
+                    "geometry": {
+                        "type": bolge.geo.type,
+                        "coordinates": bolge.geo.coordinates
+                    }
+                };
+
+                L.geoJSON(geojsonFeature, {
+                    style: {
+                        color: "#ff0000",
+                        opacity: 0.2,
+                        fillColor: '#ff0000',
+                        fillOpacity: 0.2
+                    }
+                }).addTo(bolgeLayer);
+
+                bolgeLayer.bindPopup().addTo(mymap);
+            }
+        })
+    }
+
+
+    function getSubeler(bolgeId, bolgeAdi) {
+
+        $.get("/Map/GetSubeler", { '_id': bolgeId }, function (data, status) {
+            console.log('get subeler function');
+            var jsonData = JSON.parse(data);
+            subeler = jsonData;
+            var subelerUl = document.createElement('ul');
+            subelerUl.setAttribute('class', 'nested active');
+            subelerUl.setAttribute('id', ('subeler' + bolgeAdi));
+            jsonData.forEach((sube) => {
+                var subeli = document.createElement('li');
+                subeli.setAttribute('id', sube._id);
+                subeli.setAttribute('subeAdi', sube.subeAdi);
+                subeli.innerHTML = sube.subeAdi;
+                subeli.setAttribute('isDrawed', 'false');
+                subeli.addEventListener('click', function (e) {
+                    if (subeli.getAttribute('isDrawed') == 'false') {
+                        renderSubeArea(this);
+                        subeli.setAttribute('isDrawed', 'true');
+                    }
+                    else {
+                        subelerLayers.clearLayers();
+                        subeli.setAttribute('isDrawed', 'false');
+                    }
+                });
+                subelerUl.appendChild(subeli);
+            })
+
+            var bolgeLi = document.getElementById('li' + bolgeAdi);
+            bolgeLi.appendChild(subelerUl);
+        })
+    }
+
+    function printSpans() {
+        var bolgelerUl = document.getElementById('bolgelerUL');
+        console.log(bolgelerUl);
+
+    }
+
+
+
+</script>
+
+<script>
+    var xd = 5;
+    function openNav() {
+        document.getElementById("mySidenav").style.width = "20%";
+    }
+
+    function closeNav() {
+        document.getElementById("mySidenav").style.width = "0";
+    }
+</script>
+
+<div id="mapid">
+
+
+    <script>
+
+        var subelerLayers = new L.featureGroup();
+        function renderSubeArea(e) {
+
+            $.get("/Map/GetSubeArea", { '_id': e.getAttribute('id') }, function (data, status) {
+                var jsonData = JSON.parse(data);
+                subeler = jsonData;
+
+
+                //mymap.removeLayer(subelerLayers);
+                subelerLayers.clearLayers();
+
+                jsonData.forEach((sube) => {
+                    var geojsonFeature = {
+                        "type": "Feature",
+                        "properties": {
+                            "name": "Coors Field",
+                            "amenity": "Baseball Stadium",
+                            "popupContent": "This is where the Rockies play!",
+                            'adi': sube.Adi,
+                            'ilAdi': sube.IlAdi,
+                            'ilceAdi': sube.IlceAdi,
+                            'personelSayisi': sube.PersonelSayisi,
+                            'sorumluKisi': sube.SorumluKisi,
+                            'subeId': sube.SubeAdi,
+                            '_id': sube._id
+                        },
+                        "geometry": {
+                            "type": sube.Geo.type,
+                            "coordinates": sube.Geo.coordinates
+                        }
+                    };
+                    L.geoJSON(geojsonFeature).addTo(subelerLayers);
+                })
+
+                subelerLayers.bindPopup('Getir').addTo(mymap);
+            })
+        }
+
+        // create map
+        var mymap = L.map('mapid', { zoomControl: false }).setView([41.0113, 29.05], 12);
+        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+            attribution: '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            maxZoom: 18,
+            id: 'mapbox/streets-v11',
+            tileSize: 512,
+            zoomOffset: -1,
+            accessToken: 'pk.eyJ1Ijoib2xjYXlhcnBhYyIsImEiOiJja3B3YjV1NW8wYzJ1Mm90Y3BuMHMybXphIn0.jHkMd-4j9zKVhWaOXati0A'
+
+        }).addTo(mymap);
+
+        // geomap control panel
+        mymap.pm.addControls({
+            position: 'topright',
+
+            drawCircle: false,
+            drawCircleMarker: false,
+            drawRectangle: false,
+            cutPolygon: true,
+            editPolygon: true,
+        });
+
+
+        // create polygon layers and add popup functionality
+        var polygons = new L.featureGroup();
+        polygons.bindPopup().addTo(mymap);
+        var points = new L.featureGroup();
+        points.bindPopup().addTo(mymap);
+        var lines = new L.featureGroup();
+        lines.bindPopup().addTo(mymap);
+
+        // Polygons: popup open listener
+        polygons.on('popupopen', (e) => {
+            var popup = e.popup;
+            // create div for showing coordinates
+            var geoJSON = e.layer.toGeoJSON();
+            var geo = L.DomUtil.create('div');
+            geo.innerHTML = JSON.stringify(geoJSON.geometry, null, 2) + '\n';
+
+            // create form
+            var ilInput = document.createElement('INPUT');
+            ilInput.setAttribute('type', 'TEXT');
+            ilInput.setAttribute('id', 'IlAdi');
+            ilInput.setAttribute('placeholder', 'IlAdi');
+
+
+            var ilceInput = document.createElement('INPUT');
+            ilceInput.setAttribute('type', 'TEXT');
+            ilceInput.setAttribute('id', 'IlceAdi');
+            ilceInput.setAttribute('placeholder', 'IlceAdi');
+
+            var adInput = document.createElement('INPUT');
+            adInput.setAttribute('type', 'TEXT');
+            adInput.setAttribute('id', 'Adi');
+            adInput.setAttribute('placeholder', 'Adi');
+
+            var sorumluInput = document.createElement('INPUT');
+            sorumluInput.setAttribute('type', 'TEXT');
+            sorumluInput.setAttribute('id', 'SorumluKisi');
+            sorumluInput.setAttribute('placeholder', 'SorumluKisi');
+
+            var personelInput = document.createElement('INPUT');
+            personelInput.setAttribute('type', 'number');
+            personelInput.setAttribute('id', 'PersonelSayisi');
+            personelInput.setAttribute('placeholder', 'PersonelSayisi');
+
+            // create button to add to database
+            var btn = L.DomUtil.create('button', '', L.DomUtil.create('div'));
+            btn.setAttribute('type', 'button');
+            btn.innerHTML = 'Add to database';
+            // add listener to button
+            L.DomEvent.on(btn, 'click', () => sendPolygonToDb(geoJSON));
+
+            // show popupDiv
+            var popupDiv = L.DomUtil.create('div');
+            popupDiv.setAttribute('id', 'popupDiv');
+            //popupDiv.appendChild(geo);
+            popupDiv.appendChild(ilInput);
+            popupDiv.appendChild(ilceInput);
+            popupDiv.appendChild(adInput);
+            popupDiv.appendChild(sorumluInput);
+            popupDiv.appendChild(personelInput);
+
+            popupDiv.appendChild(document.createElement('br'))
+            popupDiv.appendChild(btn);
+            popup.setContent(popupDiv);
+        })
+
+        points.on('popupopen', (e) => {
+            var geoJSON = e.layer.toGeoJSON();
+            var popup = e.popup;
+            var btn = L.DomUtil.create('button', '', L.DomUtil.create('div'));
+            btn.setAttribute('type', 'button');
+            btn.innerHTML = 'Add to database';
+            // add listener to button
+            L.DomEvent.on(btn, 'click', () => sendPointToDb(geoJSON));
+            // show popupDiv
+            var popupDiv = L.DomUtil.create('div');
+            popup.setContent(btn);
+        })
+
+        lines.on('popupopen', (e) => {
+            var geoJSON = e.layer.toGeoJSON();
+            var popup = e.popup;
+            var btn = L.DomUtil.create('button', '', L.DomUtil.create('div'));
+            btn.setAttribute('type', 'button');
+            btn.innerHTML = 'Add to database';
+            // add listener to button
+            L.DomEvent.on(btn, 'click', () => sendLineToDb(geoJSON));
+            // show popupDiv
+            var popupDiv = L.DomUtil.create('div');
+            popup.setContent(btn);
+        })
+
+
+
+        mymap.on('pm:create', (e) => {
+            if (e.shape == "Polygon" || e.shape == "Poly" || e.shape == "Rectangle") { e.layer.addTo(polygons); }
+            else if (e.shape == "Marker") { e.layer.addTo(points); }
+            else if (e.shape == "Line") { e.layer.addTo(lines); }
+
+        });
+
+
+        function sendPointToDb(geoJSON) {
+            $.ajax({
+                type: "POST",
+                url: "/Map/PostPoint",
+                data: JSON.stringify(geoJSON.geometry),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+            });
+            mymap.closePopup();
+        }
+
+        function sendLineToDb(geoJSON) {
+            $.ajax({
+                type: "POST",
+                url: "/Map/PostLineString",
+                data: JSON.stringify(geoJSON.geometry),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+            });
+            mymap.closePopup();
+        }
+
+
+        function sendPolygonToDb(geoJSON) {
+
+            // POST REQUEST HERE
+            var geo = {};
+            var testPolygon = [];
+
+            polygons.eachLayer(function (layer) {
+                if (layer.toGeoJSON().type == "Feature") {
+                    //console.log("Feature");
+                    //console.log(layer.toGeoJSON());
+                    testPolygon.push(layer.toGeoJSON().geometry.coordinates);
+                }
+            });
+
+            if (testPolygon.length == 1) {
+                geo.type = "Polygon";
+                geo.coordinates = testPolygon[0];
+            }
+            else {
+                geo.type = "MultiPolygon";
+                geo.coordinates = testPolygon;
+            }
+
+            var subeInfo = {
+                "IlAdi": document.getElementById('IlAdi').value,
+                "IlceAdi": document.getElementById('IlceAdi').value,
+                "Adi": document.getElementById('Adi').value,
+                "SorumluKisi": document.getElementById('SorumluKisi').value,
+                "PersonelSayisi": document.getElementById('PersonelSayisi').value,
+                "Geo": geo
+            }
+
+            console.log(JSON.stringify(subeInfo));
+            // post request to controller
+            $.ajax({
+                type: "POST",
+                url: ("/Map/Post" + geo.type + "Sube"),
+                data: JSON.stringify(subeInfo),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+            });
+
+
+            polygons.clearLayers();
+            mymap.closePopup();
+
+        }
+
+
+
+
+
+
+
+        // function to handle bug of "popup opening on remove event"
+        mymap.on('pm:remove', (e) => {
+            setTimeout(function () {
+                mymap.closePopup();
+            }, 10);
+
+
+        });
+
+
+        // close popup, when clicked to outside of popup
+        $(document).mouseup(function (e) {
+            var container = $('#popupDiv');
+
+            // if the target of the click isn't the container nor a descendant of the container
+            if (!container.is(e.target) && container.has(e.target).length === 0) {
+                mymap.closePopup();
+            }
+        });
+
+    </script>
+</div>
+
+
