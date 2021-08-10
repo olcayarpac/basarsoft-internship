@@ -1,2 +1,2 @@
-# internship1
-Repository for internship 1
+# internship 2
+Repository for Basarsoft Internship Project
